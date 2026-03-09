@@ -1,0 +1,16 @@
+<%- include('partials/header', { title: siteName, siteName }) %>
+
+<main class="container">
+  <h1>캐릭터 대시보드</h1>
+  <p class="muted">캐릭터명을 입력하면 요약 + 상세 탭을 확인할 수 있어요.</p>
+
+  <div class="hero-search">
+    <form onsubmit="location.href='/c/' + encodeURIComponent(this.name.value.trim()); return false;">
+      <input name="name" placeholder="캐릭터명" />
+      <button type="submit">검색</button>
+    </form>
+  </div>
+</main>
+
+</body>
+</html>

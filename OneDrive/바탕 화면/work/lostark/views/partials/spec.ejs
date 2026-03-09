@@ -1,0 +1,408 @@
+<section class="card">
+  <h2>스탯 / 각인 / 보석</h2>
+  <div class="muted small">업데이트: <%= spec?.updatedAt ?? '-' %></div>
+
+  <div class="spec-calc" data-spec-section="calc">
+  <h3>특성</h3>
+  <div class="pet-bonus">
+    <div class="pet-bonus-title">펫 특성 보너스</div>
+    <div class="pet-bonus-row">
+      <label>800 이상 특성 중 1개 선택 (+160)</label>
+      <select id="petStatSelect">
+        <option value="none">선택 안 함</option>
+        <option value="crit">치명</option>
+        <option value="spec">특화</option>
+        <option value="swift">신속</option>
+      </select>
+      <span class="muted small" id="petStatHint"></span>
+    </div>
+  </div>
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-name">치명</div>
+      <div class="stat-val" id="statCritValue"><%= spec?.stats?.crit ?? '-' %></div>
+      <div class="muted small" id="statCritBonus"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-name">특화</div>
+      <div class="stat-val" id="statSpecValue"><%= spec?.stats?.spec ?? '-' %></div>
+      <div class="muted small" id="statSpecBonus"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-name">신속</div>
+      <div class="stat-val" id="statSwiftValue"><%= spec?.stats?.swift ?? '-' %></div>
+      <div class="muted small" id="statSwiftBonus"></div>
+    </div>
+  </div>
+
+  <h3>치명타율 계산기 (임시 데이터)</h3>
+  <div class="crit-calc" id="critCalcRoot">
+    <div class="calc-card crit-calculator">
+      <h2>치명 계산기</h2>
+
+      <div class="calc-title">API 기반 값</div>
+      <div class="calc-row">
+        <label>치명 스탯</label>
+        <div id="apiCritStat">-</div>
+      </div>
+      <div class="calc-row">
+        <label>팔찌 치명타</label>
+        <div id="apiBraceletCritRate">-</div>
+      </div>
+      <div class="calc-row">
+        <label>악세서리 치명타</label>
+        <div id="apiAccessoryCritRate">-</div>
+      </div>
+      <div class="calc-row">
+        <label>아크그리드 치명타</label>
+        <div id="apiArkGridCritRate">-</div>
+      </div>
+      <div class="calc-row">
+        <label>아크패시브 치명타</label>
+        <div id="apiArkPassiveCritRate">-</div>
+      </div>
+      <div class="calc-row">
+        <label>펫 치명타</label>
+        <div id="apiPetCritRate">-</div>
+      </div>
+      <div class="calc-row">
+        <label>각인(아드레날린)</label>
+        <div id="apiEngravingCritRate">-</div>
+      </div>
+
+      <div class="calc-title">사용자 입력</div>
+      <div class="calc-row">
+        <label>파티 치명 시너지</label>
+        <select id="partySynergy">
+          <option value="0">없음</option>
+          <option value="1">1명</option>
+          <option value="2">2명</option>
+          <option value="3">3명</option>
+        </select>
+      </div>
+      <div class="calc-row">
+        <label>직업 각인 치명타(깨달음)</label>
+        <input type="number" id="classEngravingCritRate" />
+      </div>
+      <div class="calc-row">
+        <label>기타 치명타</label>
+        <input type="number" id="extraCritRate" />
+      </div>
+
+      <div class="calc-title">결과</div>
+      <div class="calc-result">
+        <div class="calc-result-main">
+          <span class="muted">최종 치명타 적중률</span>
+          <div id="totalCritRate" class="calc-value">-</div>
+        </div>
+      </div>
+
+      <div class="calc-title">Breakdown</div>
+      <div id="critBreakdown"></div>
+    </div>
+    <div class="muted small">API 연동 전 임시 입력 기반으로 계산됩니다.</div>
+    <div class="calc-grid">
+    <div class="calc-card">
+      <div class="calc-title">기본 설정</div>
+      <div class="calc-row">
+        <label>치명 스탯</label>
+        <input type="number" id="critStatInput" min="0" step="1" />
+        </div>
+        <div class="calc-row">
+          <label>치명 환산 계수(%)</label>
+          <input type="number" id="critCoeffInput" min="0" step="0.0001" />
+        </div>
+        <div class="calc-row">
+          <label>치명 상한(%)</label>
+          <input type="number" id="critCapInput" min="0" step="0.1" />
+        </div>
+      <div class="calc-row">
+        <label>치명 시너지(0~3명)</label>
+        <select id="synergyCountInput">
+          <option value="0">0명</option>
+          <option value="1">1명</option>
+          <option value="2">2명</option>
+          <option value="3">3명</option>
+        </select>
+      </div>
+      <div class="calc-row">
+        <label>직업각인 치명타율(%)</label>
+        <input type="number" id="jobCritInput" min="0" step="0.1" />
+        <label class="toggle">
+          <input type="checkbox" id="jobCritToggle" />
+          <span>적용</span>
+        </label>
+      </div>
+      
+    </div>
+
+    <div class="calc-card">
+      <div class="calc-title">결과</div>
+        <div class="calc-result">
+          <div class="calc-result-main">
+            <span class="muted">현재 치명타율</span>
+            <div id="currentCritRate" class="calc-value">-</div>
+          </div>
+          <div class="calc-result-sub">
+            <span class="muted">선택 스킬 치명타율</span>
+            <div id="skillCritRate" class="calc-value">-</div>
+          </div>
+          <div class="calc-result-sub">
+            <span class="muted">스킬 세트 평균</span>
+            <div id="avgCritRate" class="calc-value">-</div>
+          </div>
+        </div>
+        <div class="calc-note muted small" id="calcBreakdown"></div>
+      </div>
+    </div>
+
+    <div class="calc-card">
+      <div class="calc-title">치명타율 추가 입력</div>
+      <div class="calc-row">
+        <label>아크패시브 치명타율(%)</label>
+        <input type="number" id="arkPassiveCritInput" min="0" step="0.1" />
+      </div>
+      <div class="calc-row">
+        <label>악세서리 치명타율(%)</label>
+        <input type="number" id="accessoryCritInput" min="0" step="0.1" />
+      </div>
+      <div class="calc-row">
+        <label>팔찌 치명타율(%)</label>
+        <input type="number" id="braceletCritInput" min="0" step="0.1" />
+      </div>
+      <div class="calc-row">
+        <label>아드레날린 치명타율(%)</label>
+        <input type="number" id="adrenalineCritInput" min="0" step="0.1" />
+        <label class="toggle">
+          <input type="checkbox" id="adrenalineToggle" />
+          <span>적용</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="calc-card">
+      <div class="calc-title">음속돌파 계산기 (공/이속)</div>
+      <div class="calc-row">
+        <label>신속 스탯</label>
+        <input type="number" id="swiftStatInput" min="0" step="1" />
+      </div>
+      <div class="calc-row">
+        <label>신속 환산 계수(공속 %)</label>
+        <input type="number" id="atkSpeedCoeffInput" min="0" step="0.001" />
+      </div>
+      <div class="calc-row">
+        <label>신속 환산 계수(이속 %)</label>
+        <input type="number" id="moveSpeedCoeffInput" min="0" step="0.001" />
+      </div>
+      <div class="calc-row">
+        <label>직업각인 공속 버프(%)</label>
+        <input type="number" id="jobAtkSpeedInput" min="0" step="0.1" />
+      </div>
+      <div class="calc-row">
+        <label>직업각인 이속 버프(%)</label>
+        <input type="number" id="jobMoveSpeedInput" min="0" step="0.1" />
+      </div>
+      <div class="calc-row">
+        <label>팔찌 공속(%)</label>
+        <input type="number" id="braceletAtkSpeedInput" min="0" step="0.1" />
+      </div>
+      <div class="calc-row">
+        <label>팔찌 이속(%)</label>
+        <input type="number" id="braceletMoveSpeedInput" min="0" step="0.1" />
+      </div>
+      <div class="calc-row">
+        <label>기본 공속 증가(%)</label>
+        <input type="number" id="baseAtkSpeedInput" min="0" step="0.1" />
+      </div>
+      <div class="calc-row">
+        <label>기본 이속 증가(%)</label>
+        <input type="number" id="baseMoveSpeedInput" min="0" step="0.1" />
+      </div>
+      <div class="calc-row">
+        <label>공/이속 상한(%)</label>
+        <input type="number" id="speedCapInput" min="0" step="0.1" />
+      </div>
+      <div class="calc-row">
+        <label>신속 환산 적용</label>
+        <label class="toggle">
+          <input type="checkbox" id="swiftCoeffToggle" />
+          <span>적용</span>
+        </label>
+      </div>
+      <div class="calc-row">
+        <label>현재 공격속도</label>
+        <div id="totalAtkSpeed" class="badge">-</div>
+      </div>
+      <div class="calc-row">
+        <label>현재 이동속도</label>
+        <div id="totalMoveSpeed" class="badge">-</div>
+      </div>
+      <div class="calc-row">
+        <label>상시 공격속도</label>
+        <div id="alwaysAtkSpeed" class="badge">-</div>
+      </div>
+      <div class="calc-row">
+        <label>상시 이동속도</label>
+        <div id="alwaysMoveSpeed" class="badge">-</div>
+      </div>
+      <div class="calc-row">
+        <label>필요 신속 스탯 (입타 21% 기준)</label>
+        <div id="neededSwiftStat" class="badge">-</div>
+      </div>
+      <div class="calc-row">
+        <label>직각: 치명피해 증가(%)</label>
+        <div id="jobCritDmg" class="badge">-</div>
+      </div>
+      <div class="calc-row">
+        <label>직각: 치명타율 증가(%)</label>
+        <div id="jobCritFromMove" class="badge">-</div>
+      </div>
+    </div>
+
+    <div class="calc-card">
+      <div class="calc-title">스킬 트라이포드</div>
+      <div class="calc-row">
+        <label>공격속도 버프(%)</label>
+        <input type="number" id="tripodAtkSpeedInput" min="0" step="0.1" />
+      </div>
+      <div class="calc-row">
+        <label>이동속도 버프(%)</label>
+        <input type="number" id="tripodMoveSpeedInput" min="0" step="0.1" />
+      </div>
+    </div>
+
+    <div class="calc-card">
+      <div class="calc-title">버프 효과</div>
+      <label class="toggle">
+        <input type="checkbox" id="supportBuffToggle" />
+        <span>서포터 버프 (갈망 +9%)</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="feastBuffToggle" />
+        <span>공이속 만찬 (+5%)</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="atkFoodToggle" />
+        <span>공속 음식 (+3%)</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="massIncreaseToggle" />
+        <span>질량 증가 (-10%)</span>
+      </label>
+      <div class="calc-row">
+        <label>질량 증가 감소치(%)</label>
+        <input type="number" id="massIncreaseAtkSpeedInput" min="0" step="0.1" />
+      </div>
+    </div>
+
+    <div class="calc-card">
+      <div class="calc-title">아크 그리드 (혼돈 코어)</div>
+      <div class="calc-row">
+        <label>혼돈의 해: 재빠른 공격 (공속%)</label>
+        <input type="number" id="arkCoreAtkSpeedInput" min="0" step="0.1" />
+      </div>
+      <div class="calc-row">
+        <label>혼돈의 별: 속도 (공/이속%)</label>
+        <input type="number" id="arkCoreSpeedInput" min="0" step="0.1" />
+      </div>
+    </div>
+
+    <div class="calc-card">
+      <div class="calc-title">스킬 선택 (단일)</div>
+      <select id="skillSelect"></select>
+      <div id="skillTripodList" class="toggle-list"></div>
+    </div>
+
+    <div class="calc-card">
+      <div class="calc-title">스킬 세트 (평균)</div>
+      <div id="skillSetList" class="skill-set"></div>
+    </div>
+  </div>
+
+  </div>
+  <div class="spec-engraving-gem" data-spec-section="engraving-gem">
+  <h3>각인</h3>
+  <% const gradeClass = (g) => {
+    if (!g) return '';
+    if (g === '유물') return 'grade-relic';
+    if (g === '전설') return 'grade-legendary';
+    if (g === '고대') return 'grade-ancient';
+    return 'grade-common';
+  }; %>
+  <% const engravingList = spec?.engravings?.list ?? []; %>
+  <% if (!engravingList || engravingList.length === 0) { %>
+    <p class="muted">각인 데이터가 없습니다.</p>
+  <% } else { %>
+    <div class="list-grid">
+      <% engravingList.forEach(it => { %>
+        <div class="mini-card">
+          <div class="mini-row">
+            <% if (it.icon) { %>
+              <img class="mini-icon" src="<%= it.icon %>" alt="icon" />
+            <% } %>
+            <div class="mini-title">
+              <div class="mini-name"><%= it.name ?? '-' %></div>
+              <% if (it.level) { %>
+                <span class="badge">Lv. <%= it.level %></span>
+              <% } %>
+              <% if (it.grade) { %>
+                <span class="badge badge-grade <%= gradeClass(it.grade) %>"><%= it.grade %></span>
+              <% } %>
+            </div>
+          </div>
+          <% if (it.abilityStoneLevel) { %>
+            <div class="muted small">어빌리티 스톤 +<%= it.abilityStoneLevel %></div>
+          <% } %>
+          <% if (it.description) { %>
+            <div class="muted small"><%= it.description %></div>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+  <details>
+    <summary>각인 원본(JSON)</summary>
+    <pre><%= JSON.stringify(spec?.engravings?.raw ?? spec?.engravings ?? null, null, 2) %></pre>
+  </details>
+
+  <h3>보석</h3>
+  <% const gemList = spec?.gems?.list ?? []; %>
+  <% if (!gemList || gemList.length === 0) { %>
+    <p class="muted">보석 데이터가 없습니다.</p>
+  <% } else { %>
+    <div class="list-grid">
+      <% gemList.forEach(it => { %>
+        <div class="mini-card">
+          <div class="mini-row">
+            <% if (it.icon) { %>
+              <img class="mini-icon" src="<%= it.icon %>" alt="icon" />
+            <% } %>
+            <div class="mini-title">
+              <div class="mini-name"><%= it.name ?? '-' %></div>
+              <% if (it.level) { %>
+                <span class="badge">Lv. <%= it.level %></span>
+              <% } %>
+              <% if (it.grade) { %>
+                <span class="badge badge-grade <%= gradeClass(it.grade) %>"><%= it.grade %></span>
+              <% } %>
+            </div>
+          </div>
+          <% if (it.skill) { %>
+            <div class="muted small">스킬: <%= it.skill %></div>
+          <% } %>
+          <% if (it.effectType && it.effectValue) { %>
+            <div class="muted small"><%= it.effectType %> <%= it.effectValue %>%</div>
+          <% } %>
+          <% if (it.extra) { %>
+            <div class="muted small"><%= it.extra %></div>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+  <details>
+    <summary>보석 원본(JSON)</summary>
+    <pre><%= JSON.stringify(spec?.gems?.raw ?? spec?.gems ?? null, null, 2) %></pre>
+  </details>
+  </div>
+</section>

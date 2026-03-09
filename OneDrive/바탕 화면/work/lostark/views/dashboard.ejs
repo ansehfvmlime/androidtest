@@ -1,0 +1,233 @@
+<%- include('partials/header', { title: `${name} - ${siteName}`, siteName }) %>
+
+<main class="container">
+  <%- include('partials/summary', { summary }) %>
+
+  <section class="tabs">
+    <nav class="tabbar">
+      <button class="tab active" data-tab="main" data-preloaded="true">메인</button>
+      <button class="tab" data-tab="arkgrid" data-url="/api/characters/<%= encodeURIComponent(name) %>/arkgrid" data-url-secondary="/api/characters/<%= encodeURIComponent(name) %>/arkpassive" data-target="#arkgridPane" data-target-secondary="#arkpassivePane">아크그리드</button>
+      <button class="tab" data-tab="expedition" data-preloaded="true">원정대</button>
+      <button class="tab" data-tab="calc" data-preloaded="true">계산</button>
+      <button class="refresh" id="refreshBtn">새로고침</button>
+    </nav>
+
+    <div class="tabpanes">
+      <div class="pane" id="main">
+        <div class="main-grid">
+          <section class="card full-width">
+            <h2>보석</h2>
+            <% const gemList = spec?.gems?.list ?? []; %>
+            <% if (!gemList || gemList.length === 0) { %>
+              <p class="muted">보석 데이터가 없습니다.</p>
+            <% } else { %>
+              <div class="list-grid">
+                <% gemList.forEach(it => { %>
+                  <div class="mini-card">
+                    <div class="mini-row">
+                      <% if (it.icon) { %>
+                        <img class="mini-icon" src="<%= it.icon %>" alt="icon" />
+                      <% } %>
+                      <div class="mini-title">
+                        <div class="mini-name"><%= it.name ?? '-' %></div>
+                        <% if (it.level) { %>
+                          <span class="badge">Lv. <%= it.level %></span>
+                        <% } %>
+                        <% if (it.grade) { %>
+                          <span class="badge badge-grade"><%= it.grade %></span>
+                        <% } %>
+                      </div>
+                    </div>
+                    <% if (it.skill) { %>
+                      <div class="muted small">스킬: <%= it.skill %></div>
+                    <% } %>
+                    <% if (it.effectType && it.effectValue) { %>
+                      <div class="muted small"><%= it.effectType %> <%= it.effectValue %>%</div>
+                    <% } %>
+                    <% if (it.extra) { %>
+                      <div class="muted small"><%= it.extra %></div>
+                    <% } %>
+                  </div>
+                <% }) %>
+              </div>
+            <% } %>
+          </section>
+
+          <section class="card">
+            <h2>전투력</h2>
+            <div class="stat-card">
+              <div class="stat-name">전투력</div>
+              <div class="stat-val"><%= summary?.combatPower ?? '미제공' %></div>
+            </div>
+            <h2>특성</h2>
+            <div class="stat-grid">
+              <div class="stat-card">
+                <div class="stat-name">치명</div>
+                <div class="stat-val"><%= spec?.stats?.crit ?? '-' %></div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-name">특화</div>
+                <div class="stat-val"><%= spec?.stats?.spec ?? '-' %></div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-name">신속</div>
+                <div class="stat-val"><%= spec?.stats?.swift ?? '-' %></div>
+              </div>
+            </div>
+          </section>
+
+          <% const equipmentList = equipment?.list ?? []; %>
+          <% const weaponArmor = equipmentList.filter((it) => {
+            const type = [it?.Type, it?.ItemType, it?.TypeName, it?.Slot, it?.Name, it?.ItemName]
+              .filter(Boolean).join(' ');
+            return ['무기', '투구', '상의', '하의', '장갑', '어깨'].some(k => type.includes(k));
+          }); %>
+          <% const accessoryStone = equipmentList.filter((it) => {
+            const type = [it?.Type, it?.ItemType, it?.TypeName, it?.Slot, it?.Name, it?.ItemName]
+              .filter(Boolean).join(' ');
+            return ['목걸이', '귀걸이', '반지', '어빌리티', '스톤', '돌', '팔찌'].some(k => type.includes(k));
+          }); %>
+
+          <section class="card">
+            <h2>무기 / 방어구</h2>
+            <% if (!weaponArmor || weaponArmor.length === 0) { %>
+              <p class="muted">장비 데이터가 없거나 가져오지 못했습니다.</p>
+            <% } else { %>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th>타입</th>
+                      <th>품질</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% weaponArmor.forEach(it => { %>
+                      <tr>
+                        <td><%= it?.Name ?? '-' %></td>
+                        <td><%= it?.Type ?? it?.ItemType ?? '-' %></td>
+                        <td><%= it?.Quality ?? '-' %></td>
+                      </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+            <% } %>
+          </section>
+
+          <section class="card">
+            <h2>악세서리 / 스톤</h2>
+            <% if (!accessoryStone || accessoryStone.length === 0) { %>
+              <p class="muted">장비 데이터가 없거나 가져오지 못했습니다.</p>
+            <% } else { %>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th>타입</th>
+                      <th>품질</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% accessoryStone.forEach(it => { %>
+                      <tr>
+                        <td><%= it?.Name ?? '-' %></td>
+                        <td><%= it?.Type ?? it?.ItemType ?? '-' %></td>
+                        <td><%= it?.Quality ?? '-' %></td>
+                      </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+            <% } %>
+          </section>
+
+          <section class="card full-width">
+            <h2>각인</h2>
+            <% const gradeClass = (g) => {
+              if (!g) return '';
+              if (g === '유물') return 'grade-relic';
+              if (g === '전설') return 'grade-legendary';
+              if (g === '고대') return 'grade-ancient';
+              return 'grade-common';
+            }; %>
+            <% const engravingList = spec?.engravings?.list ?? []; %>
+            <% if (!engravingList || engravingList.length === 0) { %>
+              <p class="muted">각인 데이터가 없습니다.</p>
+            <% } else { %>
+              <div class="list-grid">
+                <% engravingList.forEach(it => { %>
+                  <div class="mini-card">
+                    <div class="mini-row">
+                      <% if (it.icon) { %>
+                        <img class="mini-icon" src="<%= it.icon %>" alt="icon" />
+                      <% } %>
+                      <div class="mini-title">
+                        <div class="mini-name"><%= it.name ?? '-' %></div>
+                        <% if (it.level) { %>
+                          <span class="badge">Lv. <%= it.level %></span>
+                        <% } %>
+                        <% if (it.grade) { %>
+                          <span class="badge badge-grade <%= gradeClass(it.grade) %>"><%= it.grade %></span>
+                        <% } %>
+                      </div>
+                    </div>
+                    <% if (it.abilityStoneLevel) { %>
+                      <div class="muted small">어빌리티 스톤 +<%= it.abilityStoneLevel %></div>
+                    <% } %>
+                    <% if (it.description) { %>
+                      <div class="muted small"><%= it.description %></div>
+                    <% } %>
+                  </div>
+                <% }) %>
+              </div>
+            <% } %>
+          </section>
+        </div>
+      </div>
+
+      <div class="pane" id="arkgrid" style="display:none;">
+        <div id="arkpassivePane">
+          <%- include('partials/arkpassive', { arkpassive }) %>
+        </div>
+        <div id="arkgridPane">
+          <%- include('partials/arkgrid', { arkgrid }) %>
+        </div>
+      </div>
+
+      <div class="pane" id="expedition" style="display:none;">
+        <section class="card">
+          <h2>원정대</h2>
+          <p class="muted">준비 중입니다.</p>
+        </section>
+      </div>
+
+      <div class="pane" id="calc" style="display:none;">
+        <div class="spec-split" data-spec-show="calc">
+          <%- include('partials/spec', { spec }) %>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  window.__CHAR_NAME__ = <%- JSON.stringify(name) %>;
+  window.__SPEC__ = <%- JSON.stringify(spec ?? null) %>;
+</script>
+<script>
+  document.querySelectorAll('.spec-split').forEach((root) => {
+    const show = root.dataset.specShow;
+    root.querySelectorAll('[data-spec-section]').forEach((section) => {
+      section.style.display = (section.dataset.specSection === show) ? 'block' : 'none';
+    });
+  });
+</script>
+<script src="/js/tabs.js"></script>
+<script src="/js/critCalc.js"></script>
+
+</body>
+</html>
+

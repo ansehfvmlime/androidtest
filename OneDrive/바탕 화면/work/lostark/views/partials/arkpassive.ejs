@@ -1,0 +1,69 @@
+<section class="card">
+  <div class="card-head">
+    <h2>아크패시브</h2>
+    <span class="status <%= arkpassive?.available ? 'ok' : 'warn' %>">
+      <%= arkpassive?.available ? '활성' : '준비중' %>
+    </span>
+  </div>
+
+  <% if (!arkpassive) { %>
+    <p class="muted">탭을 클릭하면 데이터를 불러옵니다.</p>
+  <% } else { %>
+    <div class="muted small">업데이트: <%= arkpassive.updatedAt %></div>
+    <% if (!arkpassive.available) { %>
+      <div class="empty-state">
+        <div class="empty-title">아직 연결되지 않았어요</div>
+        <div class="muted small"><%= arkpassive.message %></div>
+      </div>
+    <% } else { %>
+      <% const core = arkpassive.data ?? arkpassive; %>
+      <% const primitives = Object.entries(core).filter(([k, v]) => (
+        !['available', 'updatedAt', 'message', 'data'].includes(k) &&
+        (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+      )); %>
+      <% const listCandidate = core?.passives ?? core?.effects ?? core?.Effects ?? core?.items ?? null; %>
+      <% const list = Array.isArray(listCandidate) ? listCandidate : []; %>
+
+      <% if (primitives.length) { %>
+        <div class="kv-grid">
+          <% primitives.forEach(([k, v]) => { %>
+            <div class="kv-item">
+              <div class="kv-key"><%= k %></div>
+              <div class="kv-val"><%= v %></div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+
+      <% if (list.length) { %>
+        <div class="list-grid">
+          <% list.forEach(it => { %>
+            <div class="mini-card">
+              <div class="mini-row">
+                <% if (it?.Icon || it?.icon) { %>
+                  <img class="mini-icon" src="<%= it.Icon ?? it.icon %>" alt="icon" />
+                <% } %>
+                <div class="mini-title">
+                  <div class="mini-name">
+                    <%= it?.Name ?? it?.Title ?? it?.EffectName ?? it?.Type ?? '항목' %>
+                  </div>
+                  <% if (it?.Level ?? it?.Grade) { %>
+                    <span class="badge">Lv. <%= it?.Level ?? it?.Grade %></span>
+                  <% } %>
+                </div>
+              </div>
+              <% if (it?.Description ?? it?.Effect ?? it?.Tooltip ?? it?.Desc) { %>
+                <div class="muted small"><%= it?.Description ?? it?.Effect ?? it?.Tooltip ?? it?.Desc %></div>
+              <% } %>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+
+      <details>
+        <summary>아크패시브 원본(JSON)</summary>
+        <pre><%= JSON.stringify(core, null, 2) %></pre>
+      </details>
+    <% } %>
+  <% } %>
+</section>

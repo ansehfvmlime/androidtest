@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand">
+        <a href="/"><%= siteName %></a>
+      </div>
+
+      <form
+        class="search"
+        onsubmit="
+          location.href = '/c/' + encodeURIComponent(this.name.value.trim());
+          return false;
+        "
+      >
+        <input name="name" placeholder="캐릭터명 입력" />
+        <button type="submit">검색</button>
+      </form>
+    </header>
+  </body>
+</html>

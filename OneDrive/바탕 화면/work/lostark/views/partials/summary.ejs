@@ -1,0 +1,28 @@
+<section class="card">
+  <h2>요약</h2>
+
+  <div class="summary-grid">
+    <div class="summary-avatar">
+      <% const profileImage = summary?.profileImage ?? summary?.characterImage ?? summary?.image ?? null; %>
+      <% if (profileImage) { %>
+        <img src="<%= profileImage %>" alt="캐릭터 이미지" />
+      <% } else { %>
+        <div class="muted">-</div>
+      <% } %>
+    </div>
+    <div class="summary-info">
+      <div class="grid">
+        <div><b>캐릭터</b>: <%= summary.characterName ?? '-' %></div>
+        <div><b>서버</b>: <%= summary.serverName ?? '-' %></div>
+        <div><b>클래스</b>: <%= summary.className ?? '-' %></div>
+        <div><b>아이템 레벨</b>: <%= summary.itemLevel ?? '-' %></div>
+        <div><b>전투력</b>: <%= summary.combatPower ?? '미제공' %></div>
+        <div><b>전투/원정대</b>: <%= summary.levels?.combat ?? '-' %> / <%= summary.levels?.expedition ?? '-' %></div>
+        <div><b>길드</b>: <%= summary.guild ?? '-' %></div>
+        <div><b>칭호</b>: <%= summary.title ?? '-' %></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="muted small">업데이트: <%= summary.updatedAt %></div>
+</section>
