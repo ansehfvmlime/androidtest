@@ -151,25 +151,70 @@ function collectArkPassiveEntries(root) {
   return entries;
 }
 
-function parseArkPassiveCritRate(arkpassive) {
+function parseArkPassiveLevel(entry) {
+  const direct = entry?.raw?.Level ?? entry?.raw?.Grade ?? entry?.raw?.EngravingLevel ?? entry?.raw?.level ?? null;
+  if (Number.isFinite(Number(direct))) {
+    const value = Number(direct);
+    return value >= 1 ? value : null;
+  }
+  const text = `${entry?.name ?? ''} ${entry?.desc ?? ''}`;
+  const lvMatch = text.match(/lv\.?\s*(\d+)/i) || text.match(/레벨\s*(\d+)/i) || text.match(/Lv\.\s*(\d+)/);
+  if (!lvMatch) return null;
+  const parsed = Number(lvMatch[1]);
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : null;
+}
+
+function parseArkPassiveCritBreakdown(arkpassive) {
   const source = arkpassive?.data ?? arkpassive ?? null;
-  if (!source) return 0;
-  const keywords = ['예리한감각', '혼신의강타', '달인'];
+  if (!source) return { total: 0, items: [] };
+
+  const targets = [
+    { key: '달인', display: '달인', fixedCrit: 7 },
+    { key: '예리한감각', display: '예리한 감각' },
+    { key: '혼신의강타', display: '혼신의 강타' },
+    { key: '일격', display: '일격' },
+  ];
+
   const entries = collectArkPassiveEntries(source);
-  let sum = 0;
+  const map = new Map();
+
   entries.forEach((e) => {
     const nameKey = normalizeKey(e.name);
     const descKey = normalizeKey(e.desc);
-    const matched = keywords.some((k) => nameKey.includes(k) || descKey.includes(k));
-    if (!matched) return;
-    let crit = extractCritRateFromText(e.desc);
-    if (!crit && e.raw) {
-      const texts = collectEffectTexts(e.raw);
-      crit = texts.reduce((acc, t) => acc + extractCritRateFromText(t), 0);
+    const target = targets.find((t) => nameKey.includes(t.key) || descKey.includes(t.key));
+    if (!target) return;
+
+    const level = parseArkPassiveLevel(e);
+    let crit = 0;
+    if (Number.isFinite(target.fixedCrit)) {
+      crit = target.fixedCrit;
+    } else {
+      crit = extractCritRateFromText(e.desc);
+      if (!crit && e.raw) {
+        const texts = collectEffectTexts(e.raw);
+        crit = texts.reduce((acc, t) => acc + extractCritRateFromText(t), 0);
+      }
     }
-    sum += crit;
+
+    if (!crit) return;
+
+    const existing = map.get(target.key);
+    if (!existing || crit > existing.critRate || (level && !existing.level)) {
+      map.set(target.key, {
+        name: target.display,
+        level: Number.isFinite(level) ? level : null,
+        critRate: crit,
+      });
+    }
   });
-  return sum;
+
+  const items = targets
+    .map((t) => map.get(t.key))
+    .filter(Boolean);
+
+  const total = items.reduce((sum, it) => sum + Number(it.critRate || 0), 0);
+
+  return { total, items };
 }
 
 function parseAdrenalineCritRate(engravingList) {
@@ -498,7 +543,8 @@ async function getSpec(name) {
     loa.getEquipment(name).catch(() => null),
   ]);
 
-  const arkPassiveCritRate = parseArkPassiveCritRate(arkpassive);
+  const arkPassiveBreakdown = parseArkPassiveCritBreakdown(arkpassive);
+  const arkPassiveCritRate = Number(arkPassiveBreakdown.total ?? 0);
   const equipCritRates = parseEquipmentCritRates(Array.isArray(equipment) ? equipment : equipment?.list);
   const braceletSpeedRates = parseBraceletSpeedRates(Array.isArray(equipment) ? equipment : equipment?.list);
   const normalizedEngravings = normalizeEngravings(engravings);
@@ -520,6 +566,7 @@ async function getSpec(name) {
       accessory: equipCritRates.accessory,
       bracelet: equipCritRates.bracelet,
       adrenaline: adrenalineCritRate,
+      arkpassiveBreakdown: arkPassiveBreakdown,
     },
     critCalculatorInput: {
       api: {

@@ -51,6 +51,285 @@ const TEMP_DATA = {
   ],
 };
 
+const CRIT_INPUT_MAPS = {
+  accessory: {
+    none: 0,
+    low: 0.4,
+    mid: 0.95,
+    high: 1.55,
+  },
+  bracelet: {
+    none: 0,
+    low: 3.4,
+    mid: 4.2,
+    high: 5.0,
+    crit_dmg_low: 3.4,
+    crit_dmg_mid: 4.2,
+    crit_dmg_high: 5.0,
+    resist_low: 3.4,
+    resist_mid: 4.2,
+    resist_high: 5.0,
+  },
+  adrenaline: {
+    0: 14,
+    1: 15.5,
+    2: 17,
+    3: 18.5,
+    4: 20,
+  },
+};
+
+const ARK_PASSIVE_LEVEL_MAPS = {
+  sharp: { 0: 0, 1: 2, 2: 4 },
+  blow: { 0: 0, 1: 2, 2: 4 },
+  strike: { 0: 0, 1: 2, 2: 4 },
+};
+
+const CRIT_SELECT_TONES = {
+  none: 'tone-none',
+  low: 'tone-low',
+  mid: 'tone-mid',
+  high: 'tone-high',
+  crit_dmg_low: 'tone-low',
+  crit_dmg_mid: 'tone-mid',
+  crit_dmg_high: 'tone-high',
+  resist_low: 'tone-low',
+  resist_mid: 'tone-mid',
+  resist_high: 'tone-high',
+  '-1': 'tone-none',
+  0: 'tone-high',
+  1: 'tone-relic',
+  2: 'tone-relic',
+  3: 'tone-relic',
+  4: 'tone-relic',
+};
+
+function toSafeNumber(value) {
+  const num = Number(value ?? 0);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function sumMappedValues(values, map) {
+  if (!Array.isArray(values)) return 0;
+  return values.reduce((sum, value) => {
+    if (value && typeof value === 'object') {
+      if (value.key != null && map[value.key] != null) return sum + toSafeNumber(map[value.key]);
+      if (value.rate != null || value.critRate != null || value.value != null) {
+        return sum + toSafeNumber(value.rate ?? value.critRate ?? value.value);
+      }
+    }
+    if (typeof value === 'string' && map[value] != null) return sum + toSafeNumber(map[value]);
+    return sum + toSafeNumber(value);
+  }, 0);
+}
+
+function getUserCritStat(input) {
+  const manualCritStat = input?.manual?.critStat;
+  if (manualCritStat != null) return toSafeNumber(manualCritStat);
+
+  const critLevel = input?.manual?.critStatLevel ?? input?.manual?.arkGridLevel;
+  if (critLevel != null) return Math.max(0, toSafeNumber(critLevel)) * 50;
+
+  return toSafeNumber(input?.api?.critStat);
+}
+
+function getCritStatRate(input) {
+  const directRate = input?.api?.critStatRate ?? input?.manual?.critStatRate;
+  if (directRate != null) return toSafeNumber(directRate);
+
+  const critStat = getUserCritStat(input);
+  const coeff = toSafeNumber(input?.config?.critCoeffPercent ?? TEMP_DATA.critCoeffPercent);
+  return critStat * coeff;
+}
+
+function getArkPassiveCritRate(input) {
+  const directRate = input?.api?.arkPassiveCritRate ?? input?.manual?.arkPassiveCritRate;
+  if (directRate != null) return toSafeNumber(directRate);
+
+  const options = input?.manual?.arkPassiveOptions;
+  if (!options || typeof options !== 'object') return 0;
+
+  return Object.entries(options).reduce((sum, [key, option]) => {
+    const levelMap = ARK_PASSIVE_LEVEL_MAPS[key];
+    if (option && typeof option === 'object') {
+      if (option.level != null && levelMap) {
+        return sum + toSafeNumber(levelMap[option.level] ?? 0);
+      }
+      return sum + toSafeNumber(option.critRate ?? option.rate ?? option.value);
+    }
+    if (levelMap) return sum + toSafeNumber(levelMap[option] ?? 0);
+    return sum + toSafeNumber(option);
+  }, 0);
+}
+
+function getAccessoryCritRate(input) {
+  const directRate = input?.api?.accessoryCritRate ?? input?.manual?.accessoryCritRate;
+  if (directRate != null) return toSafeNumber(directRate);
+  return sumMappedValues(input?.manual?.accessoryCritRates, CRIT_INPUT_MAPS.accessory);
+}
+
+function getBraceletCritRate(input) {
+  const directRate = input?.api?.braceletCritRate ?? input?.manual?.braceletCritRate;
+  if (directRate != null) return toSafeNumber(directRate);
+
+  const option = input?.manual?.braceletCritOption;
+  if (option != null) return sumMappedValues([option], CRIT_INPUT_MAPS.bracelet);
+
+  return sumMappedValues(input?.manual?.braceletCritOptions, CRIT_INPUT_MAPS.bracelet);
+}
+
+function getAdrenalineCritRate(input) {
+  const directRate = input?.api?.engravingCritRate ?? input?.manual?.engravingCritRate ?? input?.manual?.adrenalineCritRate;
+  if (directRate != null) return toSafeNumber(directRate);
+
+  const level = input?.manual?.adrenalineLevel;
+  if (level == null) return 0;
+  return toSafeNumber(CRIT_INPUT_MAPS.adrenaline[level] ?? 0);
+}
+
+function findClosestKey(map, target) {
+  const entries = Object.entries(map);
+  let closestKey = entries[0]?.[0] ?? '';
+  let minDiff = Number.POSITIVE_INFINITY;
+
+  entries.forEach(([key, value]) => {
+    const diff = Math.abs(toSafeNumber(value) - toSafeNumber(target));
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestKey = key;
+    }
+  });
+
+  return closestKey;
+}
+
+function splitAccessoryCritRate(total) {
+  const keys = Object.keys(CRIT_INPUT_MAPS.accessory);
+  let best = ['none', 'none'];
+  let minDiff = Number.POSITIVE_INFINITY;
+
+  keys.forEach((first) => {
+    keys.forEach((second) => {
+      const sum = toSafeNumber(CRIT_INPUT_MAPS.accessory[first]) + toSafeNumber(CRIT_INPUT_MAPS.accessory[second]);
+      const diff = Math.abs(sum - toSafeNumber(total));
+      if (diff < minDiff) {
+        minDiff = diff;
+        best = [first, second];
+      }
+    });
+  });
+
+  return best;
+}
+
+function setSelectTone(select) {
+  if (!select) return;
+  select.classList.remove('tone-none', 'tone-low', 'tone-mid', 'tone-high', 'tone-relic');
+  const tone = CRIT_SELECT_TONES[select.value] ?? 'tone-none';
+  select.classList.add(tone);
+}
+
+function syncArkGridCritUI() {
+  const levelInput = $('arkGridCritLevelInput');
+  const critStatInput = $('critStatInput');
+  const levelText = $('arkGridCritLevelText');
+  const statText = $('arkGridCritStatText');
+  if (!levelInput || !critStatInput) return;
+
+  const level = toSafeNumber(levelInput.value);
+  const critStat = level * 50;
+  const critRate = critStat * TEMP_DATA.critCoeffPercent;
+
+  critStatInput.value = String(critStat);
+  if (levelText) levelText.textContent = `Lv ${level}`;
+  if (statText) statText.textContent = `치명 스탯 ${critStat} / 치명타 적중률 ${critRate.toFixed(2)}%`;
+}
+
+function getManualArkPassiveOptions() {
+  const sharpLevel = Math.max(0, Math.min(2, toSafeNumber($('arkPassiveSharpSelect')?.value)));
+  const blowLevel = Math.max(0, Math.min(2, toSafeNumber($('arkPassiveBlowSelect')?.value)));
+  const strikeLevel = Math.max(0, Math.min(2, toSafeNumber($('arkPassiveStrikeSelect')?.value)));
+
+  return {
+    sharp: { level: sharpLevel, critRate: toSafeNumber(ARK_PASSIVE_LEVEL_MAPS.sharp[sharpLevel] ?? 0), name: '예리한 감각' },
+    blow: { level: blowLevel, critRate: toSafeNumber(ARK_PASSIVE_LEVEL_MAPS.blow[blowLevel] ?? 0), name: '혼신의 강타' },
+    strike: { level: strikeLevel, critRate: toSafeNumber(ARK_PASSIVE_LEVEL_MAPS.strike[strikeLevel] ?? 0), name: '일격' },
+  };
+}
+
+function getAccessoryCritSelections() {
+  return ['accessoryCritSlot1', 'accessoryCritSlot2'].map((id) => {
+    const key = $('' + id)?.value || 'none';
+    return { key, rate: toSafeNumber(CRIT_INPUT_MAPS.accessory[key] ?? 0) };
+  });
+}
+
+function getBraceletCritSelection() {
+  const key = $('braceletCritSelect')?.value || 'none';
+  return { key, rate: toSafeNumber(CRIT_INPUT_MAPS.bracelet[key] ?? 0) };
+}
+
+function getManualArkPassiveBreakdownItems() {
+  return Object.values(getManualArkPassiveOptions())
+    .filter((item) => toSafeNumber(item.level) > 0)
+    .map((item) => ({
+      name: item.name,
+      level: item.level,
+      critRate: item.critRate,
+    }));
+}
+
+function buildCritCalculatorInput(spec) {
+  const critStat = toSafeNumber($('critStatInput')?.value);
+  const braceletCritOption = getBraceletCritSelection();
+
+  return {
+    api: {
+      critStat: toSafeNumber(spec?.critCalculatorInput?.api?.critStat ?? spec?.stats?.crit ?? 0),
+      arkGridCritRate: toSafeNumber(spec?.critCalculatorInput?.api?.arkGridCritRate ?? 0),
+      petCritRate: 0,
+    },
+    manual: {
+      critStatLevel: toSafeNumber($('arkGridCritLevelInput')?.value),
+      critStat,
+      arkPassiveOptions: getManualArkPassiveOptions(),
+      accessoryCritRates: getAccessoryCritSelections(),
+      braceletCritOption,
+      adrenalineLevel: $('adrenalineCritSelect')?.value ?? '-1',
+      classEngravingCritRate: toSafeNumber($('classEngravingCritRate')?.value),
+      extraCritRate: toSafeNumber($('extraCritRate')?.value),
+      partySynergyLevel: toSafeNumber($('partySynergy')?.value),
+    },
+    config: {
+      critCoeffPercent: TEMP_DATA.critCoeffPercent,
+    },
+  };
+}
+
+function buildApiCritCalculatorInput(spec) {
+  const baseInput = spec?.critCalculatorInput ?? {};
+  return {
+    api: {
+      critStat: toSafeNumber(baseInput.api?.critStat ?? spec?.stats?.crit ?? 0),
+      braceletCritRate: toSafeNumber(baseInput.api?.braceletCritRate ?? spec?.critRateSources?.bracelet ?? 0),
+      accessoryCritRate: toSafeNumber(baseInput.api?.accessoryCritRate ?? spec?.critRateSources?.accessory ?? 0),
+      arkGridCritRate: toSafeNumber(baseInput.api?.arkGridCritRate ?? 0),
+      arkPassiveCritRate: toSafeNumber(baseInput.api?.arkPassiveCritRate ?? spec?.critRateSources?.arkpassive ?? 0),
+      petCritRate: 0,
+      engravingCritRate: toSafeNumber(baseInput.api?.engravingCritRate ?? spec?.critRateSources?.adrenaline ?? 0),
+    },
+    manual: {
+      partySynergyLevel: 0,
+      partySynergyCritRate: 0,
+      classEngravingCritRate: 0,
+      extraCritRate: 0,
+    },
+    config: {
+      critCoeffPercent: TEMP_DATA.critCoeffPercent,
+    },
+  };
+}
+
 function calculateCritRate(input) {
   const partySynergyCritRateMap = {
     0: 0,
@@ -59,19 +338,24 @@ function calculateCritRate(input) {
     3: 30,
   };
 
-  const partyLevel = Number(input?.manual?.partySynergyLevel ?? 0);
+  const rawPartyLevel = input?.manual?.partySynergyLevel;
+  const partyLevel = rawPartyLevel == null ? null : Number(rawPartyLevel);
+  const partySynergyCritRate =
+    partyLevel == null
+      ? toSafeNumber(input?.manual?.partySynergyCritRate)
+      : toSafeNumber(partySynergyCritRateMap[partyLevel] ?? 0);
 
   const breakdown = {
-    critStatRate: Number(input?.api?.critStatRate ?? 0),
-    braceletCritRate: Number(input?.api?.braceletCritRate ?? 0),
-    accessoryCritRate: Number(input?.api?.accessoryCritRate ?? 0),
-    arkGridCritRate: Number(input?.api?.arkGridCritRate ?? 0),
-    arkPassiveCritRate: Number(input?.api?.arkPassiveCritRate ?? 0),
-    petCritRate: Number(input?.api?.petCritRate ?? 0),
-    engravingCritRate: Number(input?.api?.engravingCritRate ?? 0),
-    partySynergyCritRate: Number(partySynergyCritRateMap[partyLevel] ?? 0),
-    classEngravingCritRate: Number(input?.manual?.classEngravingCritRate ?? 0),
-    extraCritRate: Number(input?.manual?.extraCritRate ?? 0),
+    critStatRate: getCritStatRate(input),
+    braceletCritRate: getBraceletCritRate(input),
+    accessoryCritRate: getAccessoryCritRate(input),
+    arkGridCritRate: toSafeNumber(input?.api?.arkGridCritRate),
+    arkPassiveCritRate: getArkPassiveCritRate(input),
+    petCritRate: toSafeNumber(input?.api?.petCritRate),
+    engravingCritRate: getAdrenalineCritRate(input),
+    partySynergyCritRate,
+    classEngravingCritRate: toSafeNumber(input?.manual?.classEngravingCritRate),
+    extraCritRate: toSafeNumber(input?.manual?.extraCritRate),
   };
 
   const totalCritRate =
@@ -94,9 +378,15 @@ function calculateCritRate(input) {
 
 function initCritCalc() {
   const spec = window.__SPEC__ || null;
-  const critStat = Number(spec?.stats?.crit ?? 0);
+  const baseInput = spec?.critCalculatorInput ?? {};
+  const apiDefaults = baseInput.api ?? {};
+  const critStat = Number(apiDefaults.critStat ?? spec?.stats?.crit ?? 0);
   const swiftStat = Number(spec?.stats?.swift ?? 0);
-  const specStat = Number(spec?.stats?.spec ?? 0);
+  const manualDefaults = baseInput.manual ?? {};
+  const apiAccessoryCritRate = toSafeNumber(apiDefaults.accessoryCritRate ?? spec?.critRateSources?.accessory ?? 0);
+  const apiBraceletCritRate = toSafeNumber(apiDefaults.braceletCritRate ?? spec?.critRateSources?.bracelet ?? 0);
+  const apiAdrenalineCritRate = toSafeNumber(apiDefaults.engravingCritRate ?? spec?.critRateSources?.adrenaline ?? 0);
+  const defaultCritStatLevel = Math.max(0, Math.min(30, Math.floor(critStat / 50)));
 
   const critStatInput = $('critStatInput');
   const coeffInput = $('critCoeffInput');
@@ -104,11 +394,14 @@ function initCritCalc() {
   const synergyInput = $('synergyCountInput');
   const jobCritInput = $('jobCritInput');
   const jobCritToggle = $('jobCritToggle');
-  const arkPassiveCritInput = $('arkPassiveCritInput');
-  const accessoryCritInput = $('accessoryCritInput');
-  const braceletCritInput = $('braceletCritInput');
-  const adrenalineCritInput = $('adrenalineCritInput');
-  const adrenalineToggle = $('adrenalineToggle');
+  const arkGridCritLevelInput = $('arkGridCritLevelInput');
+  const arkPassiveSharpSelect = $('arkPassiveSharpSelect');
+  const arkPassiveBlowSelect = $('arkPassiveBlowSelect');
+  const arkPassiveStrikeSelect = $('arkPassiveStrikeSelect');
+  const accessoryCritSlot1 = $('accessoryCritSlot1');
+  const accessoryCritSlot2 = $('accessoryCritSlot2');
+  const braceletCritSelect = $('braceletCritSelect');
+  const adrenalineCritSelect = $('adrenalineCritSelect');
   const swiftStatInput = $('swiftStatInput');
   const atkSpeedCoeffInput = $('atkSpeedCoeffInput');
   const moveSpeedCoeffInput = $('moveSpeedCoeffInput');
@@ -132,25 +425,50 @@ function initCritCalc() {
   const skillSelect = $('skillSelect');
   const skillTripodList = $('skillTripodList');
   const skillSetList = $('skillSetList');
-  const petStatSelect = $('petStatSelect');
   const partySynergySelect = $('partySynergy');
   const classEngravingInput = $('classEngravingCritRate');
   const extraCritInput = $('extraCritRate');
 
   if (!critStatInput) return;
 
-  critStatInput.value = critStat || '';
+  critStatInput.value = '0';
   coeffInput.value = TEMP_DATA.critCoeffPercent;
-  capInput.value = TEMP_DATA.critCapPercent;
+  capInput.value = 0;
   synergyInput.value = '0';
   jobCritInput.value = TEMP_DATA.jobCrit.value;
   jobCritToggle.checked = TEMP_DATA.jobCrit.toggle;
-  if (arkPassiveCritInput) arkPassiveCritInput.value = spec?.critRateSources?.arkpassive ?? 0;
-  if (accessoryCritInput) accessoryCritInput.value = spec?.critRateSources?.accessory ?? 0;
-  if (braceletCritInput) braceletCritInput.value = spec?.critRateSources?.bracelet ?? 0;
-  const adrenalineBase = Number(spec?.critRateSources?.adrenaline ?? 0);
-  if (adrenalineCritInput) adrenalineCritInput.value = adrenalineBase || 0;
-  if (adrenalineToggle) adrenalineToggle.checked = adrenalineBase > 0;
+  if (arkGridCritLevelInput) {
+    arkGridCritLevelInput.value = String(
+      Math.max(0, Math.min(30, toSafeNumber(manualDefaults.critStatLevel ?? manualDefaults.arkGridLevel ?? defaultCritStatLevel)))
+    );
+  }
+  const arkPassiveItems = spec?.critRateSources?.arkpassiveBreakdown?.items ?? [];
+  const sharpItem = arkPassiveItems.find((item) => item?.name === '예리한 감각');
+  const blowItem = arkPassiveItems.find((item) => item?.name === '혼신의 강타');
+  const strikeItem = arkPassiveItems.find((item) => item?.name === '일격');
+  const apiArkPassiveOptions = manualDefaults.arkPassiveOptions ?? {};
+  if (arkPassiveSharpSelect) arkPassiveSharpSelect.value = String(Math.max(0, Math.min(2, toSafeNumber(apiArkPassiveOptions.sharp?.level ?? sharpItem?.level))));
+  if (arkPassiveBlowSelect) arkPassiveBlowSelect.value = String(Math.max(0, Math.min(2, toSafeNumber(apiArkPassiveOptions.blow?.level ?? blowItem?.level))));
+  if (arkPassiveStrikeSelect) arkPassiveStrikeSelect.value = String(Math.max(0, Math.min(2, toSafeNumber(apiArkPassiveOptions.strike?.level ?? strikeItem?.level))));
+  const apiAccessorySelections = Array.isArray(manualDefaults.accessoryCritRates) && manualDefaults.accessoryCritRates.length >= 2
+    ? [
+      manualDefaults.accessoryCritRates[0]?.key ?? 'none',
+      manualDefaults.accessoryCritRates[1]?.key ?? 'none',
+    ]
+    : splitAccessoryCritRate(apiAccessoryCritRate);
+  const [accessorySlot1, accessorySlot2] = apiAccessorySelections;
+  if (accessoryCritSlot1) accessoryCritSlot1.value = accessorySlot1;
+  if (accessoryCritSlot2) accessoryCritSlot2.value = accessorySlot2;
+  if (braceletCritSelect) {
+    braceletCritSelect.value = manualDefaults.braceletCritOption?.key
+      ?? findClosestKey(CRIT_INPUT_MAPS.bracelet, apiBraceletCritRate);
+  }
+  const adrenalineBase = Number(apiAdrenalineCritRate || 0);
+  if (adrenalineCritSelect) {
+    adrenalineCritSelect.value = manualDefaults.adrenalineLevel != null
+      ? String(manualDefaults.adrenalineLevel)
+      : (adrenalineBase > 0 ? findClosestKey(CRIT_INPUT_MAPS.adrenaline, adrenalineBase) : '-1');
+  }
   swiftStatInput.value = swiftStat || '';
   atkSpeedCoeffInput.value = 0.0171;
   moveSpeedCoeffInput.value = 0.0171;
@@ -174,9 +492,12 @@ function initCritCalc() {
   if (arkCoreSpeedInput) arkCoreSpeedInput.value = 0;
   swiftCoeffToggle.checked = true;
   speedCapInput.value = 140;
-  if (partySynergySelect) partySynergySelect.value = '0';
-  if (classEngravingInput) classEngravingInput.value = 0;
-  if (extraCritInput) extraCritInput.value = 0;
+  if (partySynergySelect) partySynergySelect.value = String(toSafeNumber(manualDefaults.partySynergyLevel));
+  if (classEngravingInput) classEngravingInput.value = toSafeNumber(manualDefaults.classEngravingCritRate);
+  if (extraCritInput) extraCritInput.value = toSafeNumber(manualDefaults.extraCritRate);
+  syncArkGridCritUI();
+  [accessoryCritSlot1, accessoryCritSlot2, braceletCritSelect, adrenalineCritSelect]
+    .forEach(setSelectTone);
 
   // Skill select
   skillSelect.innerHTML = TEMP_DATA.skills.map((s) => `
@@ -185,17 +506,12 @@ function initCritCalc() {
 
   renderSkillTripods(skillSelect.value);
   renderSkillSet();
-  initPetStatUI({ crit: critStat, spec: specStat, swift: swiftStat });
   recalc();
 
-  critStatInput.addEventListener('input', recalc);
-  coeffInput.addEventListener('input', recalc);
-  capInput.addEventListener('input', recalc);
-  if (arkPassiveCritInput) arkPassiveCritInput.addEventListener('input', recalc);
-  if (accessoryCritInput) accessoryCritInput.addEventListener('input', recalc);
-  if (braceletCritInput) braceletCritInput.addEventListener('input', recalc);
-  if (adrenalineCritInput) adrenalineCritInput.addEventListener('input', recalc);
-  if (adrenalineToggle) adrenalineToggle.addEventListener('change', recalc);
+  if (arkGridCritLevelInput) arkGridCritLevelInput.addEventListener('input', () => {
+    syncArkGridCritUI();
+    recalc();
+  });
   swiftStatInput.addEventListener('input', recalc);
   atkSpeedCoeffInput.addEventListener('input', recalc);
   moveSpeedCoeffInput.addEventListener('input', recalc);
@@ -222,76 +538,24 @@ function initCritCalc() {
   if (partySynergySelect) partySynergySelect.addEventListener('change', recalc);
   if (classEngravingInput) classEngravingInput.addEventListener('input', recalc);
   if (extraCritInput) extraCritInput.addEventListener('input', recalc);
+  [arkPassiveSharpSelect, arkPassiveBlowSelect, arkPassiveStrikeSelect]
+    .filter(Boolean)
+    .forEach((el) => {
+      el.addEventListener('change', recalc);
+    });
+  [accessoryCritSlot1, accessoryCritSlot2, braceletCritSelect, adrenalineCritSelect]
+    .filter(Boolean)
+    .forEach((el) => {
+      el.addEventListener('change', () => {
+        setSelectTone(el);
+        recalc();
+      });
+    });
 
   skillSelect.addEventListener('change', () => {
     renderSkillTripods(skillSelect.value);
     recalc();
   });
-}
-
-function initPetStatUI(baseStats) {
-  const petStatSelect = $('petStatSelect');
-  if (!petStatSelect) return;
-
-  const options = {
-    crit: baseStats.crit,
-    spec: baseStats.spec,
-    swift: baseStats.swift,
-  };
-
-  ['crit', 'spec', 'swift'].forEach((key) => {
-    const opt = petStatSelect.querySelector(`option[value="${key}"]`);
-    if (!opt) return;
-    opt.disabled = options[key] < 800;
-  });
-
-  petStatSelect.addEventListener('change', () => {
-    const selected = petStatSelect.value;
-    if (selected !== 'none' && options[selected] < 800) {
-      petStatSelect.value = 'none';
-      setPetHint('선택한 특성이 800 미만입니다.');
-    } else {
-      setPetHint('');
-    }
-    applyPetBonus(baseStats, petStatSelect.value);
-    recalc();
-  });
-
-  applyPetBonus(baseStats, petStatSelect.value || 'none');
-}
-
-function applyPetBonus(baseStats, selected) {
-  const bonus = 160;
-  const withBonus = {
-    crit: baseStats.crit + (selected === 'crit' ? bonus : 0),
-    spec: baseStats.spec + (selected === 'spec' ? bonus : 0),
-    swift: baseStats.swift + (selected === 'swift' ? bonus : 0),
-  };
-
-  const critEl = $('statCritValue');
-  const specEl = $('statSpecValue');
-  const swiftEl = $('statSwiftValue');
-  const critBonusEl = $('statCritBonus');
-  const specBonusEl = $('statSpecBonus');
-  const swiftBonusEl = $('statSwiftBonus');
-
-  if (critEl) critEl.textContent = withBonus.crit || '-';
-  if (specEl) specEl.textContent = withBonus.spec || '-';
-  if (swiftEl) swiftEl.textContent = withBonus.swift || '-';
-
-  if (critBonusEl) critBonusEl.textContent = selected === 'crit' ? `펫 +${bonus}` : '';
-  if (specBonusEl) specBonusEl.textContent = selected === 'spec' ? `펫 +${bonus}` : '';
-  if (swiftBonusEl) swiftBonusEl.textContent = selected === 'swift' ? `펫 +${bonus}` : '';
-
-  const critInput = $('critStatInput');
-  const swiftInput = $('swiftStatInput');
-  if (critInput) critInput.value = withBonus.crit || '';
-  if (swiftInput) swiftInput.value = withBonus.swift || '';
-}
-
-function setPetHint(text) {
-  const hint = $('petStatHint');
-  if (hint) hint.textContent = text;
 }
 
 function renderSkillTripods(skillId) {
@@ -374,12 +638,9 @@ function getBaseCritRate() {
 }
 
 function getGlobalCritBonus() {
-  const synergyCount = Number($('synergyCountInput').value || 0);
-  const synergy = synergyCount * TEMP_DATA.synergyPerPerson;
-
   const jobBonus = $('jobCritToggle').checked ? Number($('jobCritInput').value || 0) : 0;
 
-  return { synergy, jobBonus };
+  return { synergy: 0, jobBonus };
 }
 
 function getSpeedBonuses() {
@@ -465,42 +726,14 @@ function clamp(value, cap) {
 
 function recalc() {
   updateCritCalculatorUI();
-  const base = getBaseCritRate();
-  const cap = Number($('critCapInput').value || 0);
   const global = getGlobalCritBonus();
   const speed = getSpeedBonuses();
   const jobBonus = getJobEngravingBonus(speed.moveAlwaysInc, speed.atkAlwaysInc);
-  const arkPassiveCrit = Number($('arkPassiveCritInput')?.value || 0);
-  const accessoryCrit = Number($('accessoryCritInput')?.value || 0);
-  const braceletCrit = Number($('braceletCritInput')?.value || 0);
-  const adrenalineCrit = $('adrenalineToggle')?.checked ? Number($('adrenalineCritInput')?.value || 0) : 0;
-  const classEngravingCrit = Number($('classEngravingCritRate')?.value || 0);
-  const extraCritInput = Number($('extraCritRate')?.value || 0);
-  const engineResult = calculateCritRate({
-    api: {
-      critStat: Number($('critStatInput')?.value || 0),
-      critStatRate: base,
-      braceletCritRate: braceletCrit,
-      accessoryCritRate: accessoryCrit,
-      arkGridCritRate: 0,
-      arkPassiveCritRate: arkPassiveCrit,
-      petCritRate: 0,
-      engravingCritRate: adrenalineCrit,
-    },
-    manual: {
-      partySynergyLevel: Number($('synergyCountInput')?.value || 0),
-      partySynergyCritRate: 0,
-      classEngravingCritRate: classEngravingCrit,
-      extraCritRate: extraCritInput,
-    },
-  });
-  const currentCrit = clamp(
-    base + arkPassiveCrit + accessoryCrit + braceletCrit + adrenalineCrit + extraCritInput + global.synergy + classEngravingCrit + jobBonus.critFromMove,
-    cap
-  );
+  const engineResult = calculateCritRate(buildCritCalculatorInput(window.__SPEC__ || null));
+  const currentCrit = engineResult.totalCritRate + global.jobBonus + jobBonus.critFromMove;
 
   const selectedSkillId = $('skillSelect').value;
-  const skillCrit = clamp(currentCrit + getSkillCritBonus(selectedSkillId), cap);
+  const skillCrit = currentCrit + getSkillCritBonus(selectedSkillId);
 
   // Average over selected skills
   let totalWeight = 0;
@@ -510,7 +743,7 @@ function recalc() {
     const id = el.dataset.skillSetId;
     const weightInput = document.querySelector(`[data-skill-weight="${id}"]`);
     const weight = Number(weightInput?.value || 0);
-    const crit = clamp(currentCrit + getSkillCritBonus(id), cap);
+    const crit = currentCrit + getSkillCritBonus(id);
     totalWeight += weight;
     totalCrit += crit * weight;
   });
@@ -561,32 +794,27 @@ function recalc() {
 
 function updateCritCalculatorUI() {
   const spec = window.__SPEC__ || null;
-  const baseInput = spec?.critCalculatorInput || {};
-  const critStatRate = getBaseCritRate();
-  const partyLevel = Number($('partySynergy')?.value || 0);
-  const adrenalineCrit = $('adrenalineToggle')?.checked ? Number($('adrenalineCritInput')?.value || 0) : 0;
-  const extraCritInput = Number($('extraCritRate')?.value || 0);
+  const apiInput = buildApiCritCalculatorInput(spec);
+  const result = calculateCritRate(apiInput);
 
-  const input = {
-    api: {
-      critStat: Number($('critStatInput')?.value || baseInput.api?.critStat || 0),
-      critStatRate,
-      braceletCritRate: Number(baseInput.api?.braceletCritRate ?? spec?.critRateSources?.bracelet ?? 0),
-      accessoryCritRate: Number(baseInput.api?.accessoryCritRate ?? spec?.critRateSources?.accessory ?? 0),
-      arkGridCritRate: Number(baseInput.api?.arkGridCritRate ?? 0),
-      arkPassiveCritRate: Number(baseInput.api?.arkPassiveCritRate ?? spec?.critRateSources?.arkpassive ?? 0),
-      petCritRate: Number(baseInput.api?.petCritRate ?? 0),
-      engravingCritRate: Number(baseInput.api?.engravingCritRate ?? spec?.critRateSources?.adrenaline ?? 0),
-    },
-    manual: {
-      partySynergyLevel: partyLevel,
-      partySynergyCritRate: 0,
-      classEngravingCritRate: Number($('classEngravingCritRate')?.value || 0),
-      extraCritRate: extraCritInput,
-    },
+  const formatPercent = (value) => {
+    const num = Number(value || 0);
+    if (!Number.isFinite(num)) return '0%';
+    const fixed = num.toFixed(2);
+    return `${fixed.replace(/\.00$/, '')}%`;
   };
 
-  const result = calculateCritRate(input);
+  const buildArkPassiveLabel = (total, items, withStyle) => {
+    const base = formatPercent(total);
+    if (!Array.isArray(items) || items.length === 0) return base;
+    const details = items.map((it) => {
+      const level = Number(it.level);
+      const levelText = Number.isFinite(level) && level >= 1 ? ` ${level}lv` : '';
+      return `${it.name}${levelText} (${formatPercent(it.critRate)})`;
+    }).join(' + ');
+    if (!withStyle) return `${base} (${details})`;
+    return `${base} <span class="arkpassive-breakdown">(${details})</span>`;
+  };
 
   const setText = (id, value) => {
     const el = $(id);
@@ -595,13 +823,19 @@ function updateCritCalculatorUI() {
   };
 
   const critStatEl = $('apiCritStat');
-  if (critStatEl) critStatEl.textContent = Number(input.api.critStat || 0) || '-';
-  setText('apiBraceletCritRate', input.api.braceletCritRate);
-  setText('apiAccessoryCritRate', input.api.accessoryCritRate);
-  setText('apiArkGridCritRate', input.api.arkGridCritRate);
-  setText('apiArkPassiveCritRate', input.api.arkPassiveCritRate);
-  setText('apiPetCritRate', input.api.petCritRate);
-  setText('apiEngravingCritRate', input.api.engravingCritRate);
+  if (critStatEl) critStatEl.textContent = Number(spec?.critCalculatorInput?.api?.critStat || spec?.stats?.crit || 0) || '-';
+  setText('apiBraceletCritRate', spec?.critRateSources?.bracelet ?? 0);
+  setText('apiAccessoryCritRate', spec?.critRateSources?.accessory ?? 0);
+  setText('apiArkGridCritRate', spec?.critCalculatorInput?.api?.arkGridCritRate ?? 0);
+  const arkPassiveEl = $('apiArkPassiveCritRate');
+  if (arkPassiveEl) {
+    arkPassiveEl.innerHTML = buildArkPassiveLabel(
+      spec?.critRateSources?.arkpassive ?? 0,
+      spec?.critRateSources?.arkpassiveBreakdown?.items,
+      true
+    );
+  }
+  setText('apiEngravingCritRate', spec?.critRateSources?.adrenaline ?? 0);
 
   const totalEl = $('totalCritRate');
   if (totalEl) totalEl.textContent = `${result.totalCritRate.toFixed(2)}%`;
@@ -609,13 +843,17 @@ function updateCritCalculatorUI() {
   const breakdownRoot = $('critBreakdown');
   if (breakdownRoot) {
     const b = result.breakdown;
+    const arkPassiveBreakdown = buildArkPassiveLabel(
+      b.arkPassiveCritRate,
+      getManualArkPassiveBreakdownItems(),
+      true
+    );
     breakdownRoot.innerHTML = `
       <div class="calc-row"><label>치명 스탯</label><div>${b.critStatRate.toFixed(2)}%</div></div>
       <div class="calc-row"><label>팔찌</label><div>${b.braceletCritRate.toFixed(2)}%</div></div>
       <div class="calc-row"><label>악세서리</label><div>${b.accessoryCritRate.toFixed(2)}%</div></div>
       <div class="calc-row"><label>아크그리드</label><div>${b.arkGridCritRate.toFixed(2)}%</div></div>
-      <div class="calc-row"><label>아크패시브</label><div>${b.arkPassiveCritRate.toFixed(2)}%</div></div>
-      <div class="calc-row"><label>펫</label><div>${b.petCritRate.toFixed(2)}%</div></div>
+      <div class="calc-row"><label>아크패시브</label><div>${arkPassiveBreakdown}</div></div>
       <div class="calc-row"><label>각인(아드레날린)</label><div>${b.engravingCritRate.toFixed(2)}%</div></div>
       <div class="calc-row"><label>파티 시너지</label><div>${b.partySynergyCritRate.toFixed(2)}%</div></div>
       <div class="calc-row"><label>직업 각인(깨달음)</label><div>${b.classEngravingCritRate.toFixed(2)}%</div></div>

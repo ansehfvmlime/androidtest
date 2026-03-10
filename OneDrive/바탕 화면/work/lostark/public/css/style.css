@@ -17,6 +17,7 @@ a { color: inherit; text-decoration: none; }
 .main-grid > .card { margin-bottom: 0; }
 @media (max-width: 860px) {
   .main-grid { grid-template-columns: 1fr; }
+  .crit-inline-grid { grid-template-columns: 1fr; }
 }
 
 .tabs .tabbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
@@ -43,16 +44,26 @@ details summary { cursor:pointer; }
 .crit-calc { margin-bottom: 12px; display:flex; flex-direction:column; gap:12px; }
 .calc-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
 .calc-card { border:1px solid #223149; background:#0b131f; border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; }
+.crit-simulator { grid-column: 1 / -1; }
 .calc-title { font-weight:700; margin-bottom:2px; }
 .calc-row { display:grid; grid-template-columns: 1fr 1fr; gap:8px; align-items:center; }
 .calc-row label { color:#9cb0c9; font-size:12px; }
 .calc-row input[type="number"] { width:100%; padding:8px; border-radius:8px; border:1px solid #2a3a52; background:#0b0f14; color:#e7eef7; }
 .calc-row input[type="range"] { width:100%; }
 .calc-row select { width:100%; padding:8px; border-radius:8px; border:1px solid #2a3a52; background:#0b0f14; color:#e7eef7; }
+.crit-level-control { display:flex; flex-direction:column; gap:8px; }
+.crit-level-meta { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.crit-inline-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; }
+.tone-none { border-color:#4b5a70 !important; color:#b6c2d2 !important; }
+.tone-low { border-color:#4d8dff !important; color:#84b5ff !important; }
+.tone-mid { border-color:#9b6dff !important; color:#c9afff !important; }
+.tone-high { border-color:#d8b24a !important; color:#ffe08a !important; }
+.tone-relic { border-color:#d45f4a !important; color:#ff9c8d !important; }
 .calc-result { display:flex; flex-direction:column; gap:8px; }
 .calc-result-main .calc-value { font-size:28px; font-weight:800; }
 .calc-result-sub .calc-value { font-size:20px; font-weight:700; }
 .calc-note { margin-top:4px; }
+.arkpassive-breakdown { font-size:12px; color:#9cb0c9; }
 .toggle-list { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:8px; }
 .toggle { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .toggle.small { font-size:12px; }

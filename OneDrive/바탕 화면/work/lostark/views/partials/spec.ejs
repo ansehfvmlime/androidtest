@@ -4,19 +4,6 @@
 
   <div class="spec-calc" data-spec-section="calc">
   <h3>특성</h3>
-  <div class="pet-bonus">
-    <div class="pet-bonus-title">펫 특성 보너스</div>
-    <div class="pet-bonus-row">
-      <label>800 이상 특성 중 1개 선택 (+160)</label>
-      <select id="petStatSelect">
-        <option value="none">선택 안 함</option>
-        <option value="crit">치명</option>
-        <option value="spec">특화</option>
-        <option value="swift">신속</option>
-      </select>
-      <span class="muted small" id="petStatHint"></span>
-    </div>
-  </div>
   <div class="stat-grid">
     <div class="stat-card">
       <div class="stat-name">치명</div>
@@ -62,10 +49,6 @@
         <div id="apiArkPassiveCritRate">-</div>
       </div>
       <div class="calc-row">
-        <label>펫 치명타</label>
-        <div id="apiPetCritRate">-</div>
-      </div>
-      <div class="calc-row">
         <label>각인(아드레날린)</label>
         <div id="apiEngravingCritRate">-</div>
       </div>
@@ -102,83 +85,126 @@
     </div>
     <div class="muted small">API 연동 전 임시 입력 기반으로 계산됩니다.</div>
     <div class="calc-grid">
-    <div class="calc-card">
-      <div class="calc-title">기본 설정</div>
-      <div class="calc-row">
-        <label>치명 스탯</label>
-        <input type="number" id="critStatInput" min="0" step="1" />
+    <section class="calc-card crit-simulator">
+      <h2>치명타 시뮬레이터</h2>
+      <div class="calc-grid">
+        <div class="calc-card">
+          <div class="calc-title">기본 설정</div>
+          <input type="hidden" id="critCoeffInput" />
+          <input type="hidden" id="critCapInput" />
+          <input type="hidden" id="critStatInput" />
+          <input type="hidden" id="synergyCountInput" value="0" />
+          <div class="calc-row">
+            <label>아크그리드 치명 레벨</label>
+            <div class="crit-level-control">
+              <input type="range" id="arkGridCritLevelInput" min="0" max="30" step="1" value="0" />
+              <div class="crit-level-meta">
+                <span id="arkGridCritLevelText" class="badge">Lv 0</span>
+                <span id="arkGridCritStatText" class="muted small">치명 스탯 0 / 치명타 적중률 0%</span>
+              </div>
+            </div>
+          </div>
+          <div class="calc-row">
+            <label>직업각인 치명타율(%)</label>
+            <input type="number" id="jobCritInput" min="0" step="0.1" />
+            <label class="toggle">
+              <input type="checkbox" id="jobCritToggle" />
+              <span>적용</span>
+            </label>
+          </div>
         </div>
-        <div class="calc-row">
-          <label>치명 환산 계수(%)</label>
-          <input type="number" id="critCoeffInput" min="0" step="0.0001" />
-        </div>
-        <div class="calc-row">
-          <label>치명 상한(%)</label>
-          <input type="number" id="critCapInput" min="0" step="0.1" />
-        </div>
-      <div class="calc-row">
-        <label>치명 시너지(0~3명)</label>
-        <select id="synergyCountInput">
-          <option value="0">0명</option>
-          <option value="1">1명</option>
-          <option value="2">2명</option>
-          <option value="3">3명</option>
-        </select>
-      </div>
-      <div class="calc-row">
-        <label>직업각인 치명타율(%)</label>
-        <input type="number" id="jobCritInput" min="0" step="0.1" />
-        <label class="toggle">
-          <input type="checkbox" id="jobCritToggle" />
-          <span>적용</span>
-        </label>
-      </div>
-      
-    </div>
 
-    <div class="calc-card">
-      <div class="calc-title">결과</div>
-        <div class="calc-result">
-          <div class="calc-result-main">
-            <span class="muted">현재 치명타율</span>
-            <div id="currentCritRate" class="calc-value">-</div>
+        <div class="calc-card">
+          <div class="calc-title">결과</div>
+            <div class="calc-result">
+              <div class="calc-result-main">
+                <span class="muted">현재 치명타율</span>
+                <div id="currentCritRate" class="calc-value">-</div>
+              </div>
+              <div class="calc-result-sub">
+                <span class="muted">선택 스킬 치명타율</span>
+                <div id="skillCritRate" class="calc-value">-</div>
+              </div>
+              <div class="calc-result-sub">
+                <span class="muted">스킬 세트 평균</span>
+                <div id="avgCritRate" class="calc-value">-</div>
+              </div>
+            </div>
+            <div class="calc-note muted small" id="calcBreakdown"></div>
           </div>
-          <div class="calc-result-sub">
-            <span class="muted">선택 스킬 치명타율</span>
-            <div id="skillCritRate" class="calc-value">-</div>
+
+        <div class="calc-card">
+          <div class="calc-title">치명타 입력</div>
+          <div class="calc-row">
+            <label>예리한 감각</label>
+            <select id="arkPassiveSharpSelect">
+              <option value="0">0</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+            </select>
           </div>
-          <div class="calc-result-sub">
-            <span class="muted">스킬 세트 평균</span>
-            <div id="avgCritRate" class="calc-value">-</div>
+          <div class="calc-row">
+            <label>혼신의 강타</label>
+            <select id="arkPassiveBlowSelect">
+              <option value="0">0</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+            </select>
+          </div>
+          <div class="calc-row">
+            <label>일격</label>
+            <select id="arkPassiveStrikeSelect">
+              <option value="0">0</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+            </select>
+          </div>
+          <div class="calc-row">
+            <label>악세서리 치명타</label>
+            <div class="crit-inline-grid">
+              <select id="accessoryCritSlot1">
+                <option value="none">없음</option>
+                <option value="low">하</option>
+                <option value="mid">중</option>
+                <option value="high">상</option>
+              </select>
+              <select id="accessoryCritSlot2">
+                <option value="none">없음</option>
+                <option value="low">하</option>
+                <option value="mid">중</option>
+                <option value="high">상</option>
+              </select>
+            </div>
+          </div>
+          <div class="calc-row">
+            <label>팔찌 치명타</label>
+            <select id="braceletCritSelect">
+              <option value="none">없음</option>
+              <option value="low">치명타 적중률 +3.4% (하)</option>
+              <option value="mid">치명타 적중률 +4.2% (중)</option>
+              <option value="high">치명타 적중률 +5.0% (상)</option>
+              <option value="crit_dmg_low">치명타 적중률 +3.4% / 치피 증가 (하)</option>
+              <option value="crit_dmg_mid">치명타 적중률 +4.2% / 치피 증가 (중)</option>
+              <option value="crit_dmg_high">치명타 적중률 +5.0% / 치피 증가 (상)</option>
+              <option value="resist_low">치명타 저항 -1.8% (하)</option>
+              <option value="resist_mid">치명타 저항 -2.1% (중)</option>
+              <option value="resist_high">치명타 저항 -2.5% (상)</option>
+            </select>
+          </div>
+          <div class="calc-row">
+            <label>아드레날린 치명타</label>
+            <select id="adrenalineCritSelect">
+              <option value="-1">없음</option>
+              <option value="0">유물 0단계</option>
+              <option value="1">유물 1단계</option>
+              <option value="2">유물 2단계</option>
+              <option value="3">유물 3단계</option>
+              <option value="4">유물 4단계</option>
+            </select>
           </div>
         </div>
-        <div class="calc-note muted small" id="calcBreakdown"></div>
       </div>
-    </div>
-
-    <div class="calc-card">
-      <div class="calc-title">치명타율 추가 입력</div>
-      <div class="calc-row">
-        <label>아크패시브 치명타율(%)</label>
-        <input type="number" id="arkPassiveCritInput" min="0" step="0.1" />
-      </div>
-      <div class="calc-row">
-        <label>악세서리 치명타율(%)</label>
-        <input type="number" id="accessoryCritInput" min="0" step="0.1" />
-      </div>
-      <div class="calc-row">
-        <label>팔찌 치명타율(%)</label>
-        <input type="number" id="braceletCritInput" min="0" step="0.1" />
-      </div>
-      <div class="calc-row">
-        <label>아드레날린 치명타율(%)</label>
-        <input type="number" id="adrenalineCritInput" min="0" step="0.1" />
-        <label class="toggle">
-          <input type="checkbox" id="adrenalineToggle" />
-          <span>적용</span>
-        </label>
-      </div>
-    </div>
+    </section>
 
     <div class="calc-card">
       <div class="calc-title">음속돌파 계산기 (공/이속)</div>
